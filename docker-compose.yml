@@ -1,0 +1,58 @@
+services:
+  # --- Ingestion: run on demand, not a long-running service ---
+  # Example:
+  #   docker compose run --rm ingest --source-url https://docs.astro.build --collection astro
+  ingest:
+    build: .
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - chroma
+    networks:
+      - rag-net
+
+  # --- Embedding: run on demand, after ingest ---
+  # Example:
+  #   docker compose run --rm embed --input data/astro.jsonl --collection astro
+  embed:
+    build: .
+    entrypoint: ["python", "embed.py"]
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - chroma
+    networks:
+      - rag-net
+
+  # --- Query: ask a question against your ingested docs ---
+  # Example:
+  #   docker compose run --rm query --collection astro "how do I add a content collection?"
+  query:
+    build: .
+    entrypoint: ["python", "query.py"]
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - chroma
+    networks:
+      - rag-net
+
+  # --- Vector store ---
+  chroma:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma-data:/chroma/chroma
+    networks:
+      - rag-net
+    restart: unless-stopped
+
+volumes:
+  chroma-data:
+
+networks:
+  rag-net:
+    driver: bridge
